@@ -1,36 +1,110 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Trontec WhatsApp — Relatórios e Broadcast
 
-## Getting Started
+Aplicação administrativa que integra WhatsApp (Evolution API) e OpenAI para:
 
-First, run the development server:
+- Gerar relatórios executivos diários a partir de mensagens de grupos
+- Enviar mensagens em broadcast para múltiplos grupos
+- Sincronizar e enriquecer contatos (foto, perfil de negócio)
+- Gerenciar biblioteca de prompts e configurações do sistema
+
+## Requisitos
+
+- Node.js 18.18+ (recomendado 20 LTS)
+- NPM (ou Yarn/PNPM)
+- SQLite (embarcado; usa `DATABASE_URL` do Prisma)
+- Credenciais válidas da Evolution API (URL, nome da instância, token)
+- OpenAI API Key
+
+## Configuração
+
+1. Instale dependências:
+
+```bash
+npm install
+```
+
+2. Configure variáveis de ambiente (arquivo `.env` na raiz):
+
+```bash
+APP_PASSWORD=admin               # defina sua senha administrativa
+DATABASE_URL="file:./prisma/dev.db"  # SQLite local
+```
+
+3. (Opcional) Sincronize o schema Prisma com o banco:
+
+```bash
+npx prisma db push
+```
+
+4. Inicie em desenvolvimento:
+
+```bash
+npm run dev:all
+# Executa UI (Next.js) em http://localhost:3000 e o worker de agendamento
+```
+
+- Apenas UI:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- Apenas worker (agendador de relatórios):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run worker
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Primeiros Passos (UI)
 
-## Learn More
+1. Acesse `http://localhost:3000` e faça login com `APP_PASSWORD`.
+2. Abra `Configurações` e informe:
+   - `Evolution API URL`, `Nome da Instância`, `Token`
+   - `OpenAI API Key`
+   - Opcional: `Prompt Padrão`, `Horário` e `Período` da automação
+3. Cadastre seus grupos (nome + `jid`).
+4. Marque os grupos que participarão da automação diária.
+5. Sincronize contatos: `POST /api/contacts/sync` (há botões na UI).
 
-To learn more about Next.js, take a look at the following resources:
+## Funcionalidades Principais
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Relatórios: geração manual via `POST /api/process` ou automática pelo worker (cron a cada minuto, dispara no horário configurado).
+- Broadcast: `POST /api/messages/send` para enviar texto a múltiplos grupos.
+- Reescrita com IA: `POST /api/messages/rewrite` usando um `Prompt` da biblioteca.
+- Contatos: `GET /api/contacts`, `POST /api/contacts/sync`, `POST /api/contacts/enrich?limit=N`.
+- Prompts: `GET/POST /api/prompts`, `PUT/DELETE /api/prompts/[id]`.
+- Grupos: `GET/POST /api/groups`, `PUT/DELETE /api/groups/[id]`, `GET /api/groups/remote`.
+- Relatórios: `GET /api/reports`, `GET /api/reports/[id]`.
+- Dashboard/Status: `GET /api/stats/dashboard` (inclui heartbeat do agendador).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Produção
 
-## Deploy on Vercel
+1. Build da UI:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run build
+npm start
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+2. Execute o worker em processo separado:
+
+```bash
+npm run worker
+```
+
+Garanta `APP_PASSWORD` e credenciais de Evolution/OpenAI configuradas via UI ou migração.
+
+## Testes e Qualidade
+
+- Lint:
+
+```bash
+npm run lint
+```
+
+- Testes: não há suíte de testes integrada no momento. Recomenda-se adicionar Jest/Vitest e cobrir serviços públicos (Evolution, OpenAI, Processor) com ≥80% de cobertura.
+
+## Notas de Segurança
+
+- Nunca exponha tokens da Evolution ou a `OpenAI API Key` no cliente.
+- Defina `APP_PASSWORD` por variável de ambiente e use HTTPS em produção.
