@@ -1,0 +1,26 @@
+# Trontec WhatsApp Orchestrator
+
+O Trontec WhatsApp Orchestrator é uma plataforma de gestão baseada em Next.js para automação de WhatsApp, focada em relatórios executivos e broadcasts inteligentes usando a Evolution API e OpenAI.
+
+## Stack Tecnológica
+- Frontend: Next.js 15+ (App Router), React 19, Tailwind CSS 4, Radix UI.
+- Backend: Next.js API Routes, Node.js.
+- Banco de Dados: Prisma ORM, SQLite.
+- IA: OpenAI (GPT-4o), LangChain.
+- Integração: Evolution API (WhatsApp).
+
+## Componentes Chave
+- `app/api/process/route.ts`: Lógica central para processamento de mensagens e geração de relatórios.
+- `lib/services/evolution.service.ts`: Wrapper para interações com a Evolution API.
+- `lib/services/openai.service.ts`: Lógica para processamento por IA e orquestração de mensagens.
+- `scripts/scheduler.ts`: Worker de background usando node-cron para tarefas automatizadas.
+
+## Documentação
+- README.md: Guia de introdução e visão geral.
+- API.md: Definições de endpoints REST.
+- .agent/ARCHITECTURE.md: Documentação do ecossistema de agentes.
+
+## Diretrizes para Interação com IA
+- Use Prisma para todas as operações de banco de dados.
+- Garanta que todas as rotas de API estejam protegidas verificando o `APP_PASSWORD`.
+- Siga as habilidades clean-code e testing-patterns definidas na pasta `.agent`.
