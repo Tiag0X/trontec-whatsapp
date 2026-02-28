@@ -42,10 +42,21 @@ else
     echo "   ⚠️  Arquivo $DB_FILE não encontrado. Pulando backup."
 fi
 
-# 3. Puxar atualizações do Git
+# 3. Puxar atualizações do Git (repositório público, sem autenticação)
 echo ""
 echo "📥 Baixando atualizações do repositório..."
-git pull origin main
+
+# Garantir que a URL remota é a pública (sem token/credenciais)
+EXPECTED_URL="https://github.com/Tiag0X/trontec-whatsapp.git"
+CURRENT_URL=$(git remote get-url origin 2>/dev/null || echo "")
+
+if [ "$CURRENT_URL" != "$EXPECTED_URL" ]; then
+    echo "   🔧 Atualizando URL remota para acesso público..."
+    git remote set-url origin "$EXPECTED_URL"
+fi
+
+# Desabilitar prompt de credenciais (repo público não precisa)
+GIT_TERMINAL_PROMPT=0 git pull origin main
 echo "   ✅ Código atualizado."
 
 # 4. Instalar/atualizar dependências
