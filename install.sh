@@ -1,55 +1,60 @@
 #!/bin/bash
 
-# --- Trontec WhatsApp Orchestrator - Linux Installer ---
+# --- Trontec WhatsApp Orchestrator - Full Linux Installer ---
 set -e
 
-echo "🚀 Iniciando instalação do Trontec WhatsApp Orchestrator..."
+REPO_URL="https://github.com/Tiag0X/trontec-whatsapp.git"
+TARGET_DIR="trontec-whatsapp"
 
-# 1. Verificar Node.js
+echo "🚀 Iniciando instalador completo para Linux..."
+
+# 1. Verificar Git
+if ! command -v git &> /dev/null; then
+    echo "❌ Git não encontrado. Instalando..."
+    sudo apt-get update && sudo apt-get install -y git
+fi
+
+# 2. Clonar repositório (se não estiver na pasta correta)
+if [ ! -f "package.json" ]; then
+    echo "📂 Clonando repositório do GitHub..."
+    if [ -d "$TARGET_DIR" ]; then
+        echo "⚠️  Diretório $TARGET_DIR já existe. Entrando nele..."
+        cd "$TARGET_DIR"
+    else
+        git clone "$REPO_URL" "$TARGET_DIR"
+        cd "$TARGET_DIR"
+    fi
+fi
+
+# 3. Verificar Node.js
 if ! command -v node &> /dev/null; then
-    echo "❌ Node.js não encontrado. Por favor, instale o Node.js 20+ primeiro."
-    echo "Sugestão (Ubuntu/Debian):"
-    echo "curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -"
-    echo "sudo apt-get install -y nodejs"
-    exit 1
+    echo "❌ Node.js não encontrado. Instalando Node.js 20..."
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+    sudo apt-get install -y nodejs
 fi
 
-NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
-if [ "$NODE_VERSION" -lt 20 ]; then
-    echo "⚠️ Versão do Node.js detectada: $NODE_VERSION. Recomendado: 20+."
-fi
-
-# 2. Instalar dependências
-echo "📦 Instalando dependências do projeto..."
+# 4. Instalar dependências
+echo "📦 Instalando dependências..."
 npm install
 
-# 3. Configurar .env se não existir
+# 5. Configurar .env
 if [ ! -f .env ]; then
-    echo "📝 Criando arquivo .env inicial..."
+    echo "📝 Criando .env inicial..."
     cat <<EOF > .env
 APP_PASSWORD=admin
 DATABASE_URL="file:./prisma/dev.db"
-# Adicione suas chaves abaixo ou via interface web
-# OPENAI_API_KEY=
-# EVOLUTION_API_URL=
-# EVOLUTION_API_TOKEN=
 EOF
-    echo "✅ Arquivo .env criado com senha padrão 'admin'."
 fi
 
-# 4. Preparar Banco de Dados
-echo "🗄️ Preparando banco de dados (Prisma)..."
+# 6. Banco de Dados
+echo "🗄️  Sincronizando banco de dados..."
 npx prisma generate
 npx prisma db push
 
-# 5. Build (Opcional, mas recomendado para produção)
-echo "🏗️ Gerando build de produção..."
+# 7. Build
+echo "🏗️  Gerando build..."
 npm run build
 
 echo ""
-echo "----------------------------------------------------"
-echo "✅ Instalação concluída com sucesso!"
-echo "----------------------------------------------------"
-echo "Para iniciar em desenvolvimento:  npm run dev:all"
-echo "Para iniciar em produção:         npm start"
-echo "----------------------------------------------------"
+echo "✅ Instalação concluída!"
+echo "Para iniciar: cd $TARGET_DIR && npm start"
