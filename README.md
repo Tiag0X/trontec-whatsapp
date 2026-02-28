@@ -35,6 +35,10 @@ cd trontec-whatsapp
 
 # Instale as dependências
 npm install
+
+# OU use o script de instalação automatizada (Linux)
+chmod +x install.sh
+./install.sh
 ```
 
 ### 2. Configuração de Ambiente
