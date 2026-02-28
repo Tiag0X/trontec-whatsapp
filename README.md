@@ -74,7 +74,25 @@ npm run dev:all
 - **Interface Web**: [http://localhost:3000](http://localhost:3000)
 - **Worker de Background**: Rodando via `tsx`
 
+### 5. Executando em Produção (Background com PM2)
+
+Para manter o sistema rodando 24/7 na sua VPS, recomendamos o uso do **PM2**:
+
+```bash
+# 1. Instalar o PM2 globalmente
+sudo npm install -g pm2
+
+# 2. Iniciar a Aplicação Web e o Worker
+pm2 start "npm start" --name trontec-app
+pm2 start "npm run worker" --name trontec-worker
+
+# 3. Salvar para reiniciar com o sistema
+pm2 startup
+pm2 save
+```
+
 ---
+
 
 ## 🛠️ Stack Tecnológica
 
