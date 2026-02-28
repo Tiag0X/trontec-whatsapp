@@ -1,60 +1,108 @@
 #!/bin/bash
 
-# --- Trontec WhatsApp Orchestrator - Full Linux Installer ---
+# --- Trontec WhatsApp Orchestrator - PRO Linux Installer ---
+# Este script automatiza o setup completo: Git, Node.js, Dependências e Banco.
+
 set -e
 
+# Configurações
 REPO_URL="https://github.com/Tiag0X/trontec-whatsapp.git"
 TARGET_DIR="trontec-whatsapp"
+PORT=3000
 
-echo "🚀 Iniciando instalador completo para Linux..."
+echo "----------------------------------------------------"
+echo "🚀 Iniciando Instalador Profissional (Ubuntu/Debian)"
+echo "----------------------------------------------------"
 
-# 1. Verificar Git
-if ! command -v git &> /dev/null; then
-    echo "❌ Git não encontrado. Instalando..."
-    sudo apt-get update && sudo apt-get install -y git
+# Função para executar com sudo se necessário
+run_cmd() {
+    if [ "$(id -u)" -ne 0 ]; then
+        if command -v sudo >/dev/null 2>&1; then
+            sudo "$@"
+        else
+            echo "❌ Erro: Este comando precisa de privilégios de root e 'sudo' não foi encontrado."
+            exit 1
+        fi
+    else
+        "$@"
+    fi
+}
+
+# 1. Verificar se a porta $PORT está ocupada
+if command -v lsof >/dev/null 2>&1; then
+    if lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null ; then
+        echo "⚠️  Aviso: A porta $PORT já está em uso. Verifique se a aplicação já não está rodando."
+    fi
 fi
 
-# 2. Clonar repositório (se não estiver na pasta correta)
-if [ ! -f "package.json" ]; then
-    echo "📂 Clonando repositório do GitHub..."
+# 2. Verificar/Instalar Git
+if ! command -v git &> /dev/null; then
+    echo "📦 Instalando Git..."
+    run_cmd apt-get update && run_cmd apt-get install -y git
+fi
+
+# 3. Gerenciar o diretório do projeto
+if [ -f "package.json" ]; then
+    echo "✅ Já está dentro de uma pasta de projeto Node.js."
+else
     if [ -d "$TARGET_DIR" ]; then
-        echo "⚠️  Diretório $TARGET_DIR já existe. Entrando nele..."
+        echo "📂 Entrando no diretório existente: $TARGET_DIR"
         cd "$TARGET_DIR"
     else
+        echo "🌐 Clonando repositório: $REPO_URL"
         git clone "$REPO_URL" "$TARGET_DIR"
         cd "$TARGET_DIR"
     fi
 fi
 
-# 3. Verificar Node.js
+# 4. Verificar/Instalar Node.js 20
 if ! command -v node &> /dev/null; then
-    echo "❌ Node.js não encontrado. Instalando Node.js 20..."
-    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-    sudo apt-get install -y nodejs
+    echo "🟢 Instalando Node.js 20 (LTS)..."
+    curl -fsSL https://deb.nodesource.com/setup_20.x | run_cmd bash -
+    run_cmd apt-get install -y nodejs
+else
+    NODE_VER=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
+    if [ "$NODE_VER" -lt 20 ]; then
+        echo "⚠️  Versão do Node ($NODE_VER) é antiga. Atualizando para v20..."
+        curl -fsSL https://deb.nodesource.com/setup_20.x | run_cmd bash -
+        run_cmd apt-get install -y nodejs
+    fi
 fi
 
-# 4. Instalar dependências
-echo "📦 Instalando dependências..."
-npm install
+# 5. Instalar dependências
+echo "📦 Instalando dependências (npm install)..."
+npm install --no-audit --no-fund
 
-# 5. Configurar .env
+# 6. Configurar Variáveis (se não existir)
 if [ ! -f .env ]; then
-    echo "📝 Criando .env inicial..."
+    echo "📝 Criando arquivo .env padrão..."
     cat <<EOF > .env
 APP_PASSWORD=admin
 DATABASE_URL="file:./prisma/dev.db"
+# Adicione suas chaves abaixo após a instalação
+# OPENAI_API_KEY=
+# EVOLUTION_API_URL=
+# EVOLUTION_API_TOKEN=
 EOF
+    echo "✅ Senha padrão definida como: admin"
 fi
 
-# 6. Banco de Dados
-echo "🗄️  Sincronizando banco de dados..."
+# 7. Preparar Banco de Dados
+echo "🗄️  Configurando Prisma e SQLite..."
 npx prisma generate
-npx prisma db push
+npx prisma db push --accept-data-loss
 
-# 7. Build
-echo "🏗️  Gerando build..."
+# 8. Build de Produção
+echo "🏗️  Gerando build de produção (Next.js)..."
 npm run build
 
 echo ""
-echo "✅ Instalação concluída!"
-echo "Para iniciar: cd $TARGET_DIR && npm start"
+echo "----------------------------------------------------"
+echo "🎉 INSTALAÇÃO CONCLUÍDA COM SUCESSO!"
+echo "----------------------------------------------------"
+echo "Para iniciar o servidor agora:"
+echo "  npm start"
+echo ""
+echo "Para rodar em background (recomendado):"
+echo "  nohup npm start > output.log 2>&1 &"
+echo "----------------------------------------------------"
