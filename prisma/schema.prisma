@@ -1,0 +1,126 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Settings {
+  id                    Int     @id @default(1)
+  evolutionApiUrl       String  @default("https://api.autonexus.app")
+  evolutionInstanceName String  @default("Informação - Clientes")
+  evolutionToken        String  @default("")
+  whatsappGroupId       String  @default("")
+  openaiApiKey          String  @default("")
+  systemPrompt          String? // Custom system prompt for AI
+  defaultPromptId       String? // Default prompt for rewriter
+  
+  // Scheduler
+  autoReportTime        String  @default("08:00") // Time to run daily report
+  isAutoReportEnabled   Boolean @default(false)
+  autoReportPeriod      String  @default("YESTERDAY") // TODAY, YESTERDAY, 24H, 48H
+
+  // Advanced AI
+  langchainModel        String  @default("gpt-4o-mini")
+  langchainTemperature  Float   @default(0.7)
+
+  schedulerHeartbeat    DateTime? // Last time the scheduler script checked in
+  
+  updatedAt             DateTime @updatedAt
+}
+
+model Group {
+  id        String   @id @default(uuid())
+  name      String   // Friendly name (e.g., "Rondas - Alfa")
+  jid       String   // WhatsApp ID (e.g., "12036304@g.us")
+  isActive  Boolean  @default(true)
+  includeInAutoReport Boolean @default(true)
+  createdAt DateTime @default(now())
+
+  // Config
+  sendToJid String?  // ID of group to forward messages to (for monitoring)
+  sendToName String? // Cached name of destination group
+
+  // Relations
+  reports   Report[]
+  prompt    Prompt?  @relation(fields: [promptId], references: [id])
+  promptId  String?
+
+  contacts  Contact[] // Many-to-Many with Contacts
+}
+
+model Contact {
+  id                String   @id @default(uuid())
+  jid               String   @unique // The WhatsApp ID (remoteJid)
+  name              String?  // Name from Contact List
+  pushName          String?  // Name set by user
+  profilePictureUrl String?
+  
+  // Extended Info
+  email             String?
+  description       String?  // Status or About or Business Description
+  website           String?
+  isBusiness        Boolean  @default(false)
+  
+  updatedAt         DateTime @updatedAt
+  
+  groups            Group[]
+}
+
+model Prompt {
+  id        String   @id @default(uuid())
+  name      String
+  content   String
+  createdAt DateTime @default(now())
+  
+  groups    Group[]
+}
+
+model Report {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  dateRef     String   // The date this report refers to (DD/MM/YYYY)
+  
+  // Structured content
+  summary     String
+  occurrences String   // JSON or Text
+  problems    String   // JSON or Text
+  orders      String   // JSON or Text
+  actions     String   // JSON or Text
+  engagement  String   // JSON or Text
+  
+  fullText    String   // The complete formatted text sent to WhatsApp
+  processedData String @default("") // RAW JSON of processed messages
+  
+  status      String   @default("GENERATED") // GENERATED, SENT, FAILED
+
+  // Relations
+  groupId     String?
+  group       Group?   @relation(fields: [groupId], references: [id])
+}
+
+
+model Broadcast {
+  id           String   @id @default(uuid())
+  message      String
+  recipients   String   // JSON: "['Group A', 'Group B']"
+  successCount Int
+  failCount    Int
+  createdAt    DateTime @default(now())
+}
+
+model MessageTemplate {
+  id        String   @id @default(uuid())
+  name      String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+

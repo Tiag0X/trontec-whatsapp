@@ -44,3 +44,22 @@ next-env.d.ts
  
 # local sqlite database
 prisma/*.db
+
+# Temporary & Debug Files
+debug-*.txt
+debug_*.txt
+lint-*.txt
+lint_*.txt
+lint_*.json
+test-*.txt
+range_test_result*.txt
+user_report_check*.txt
+*.log
+*.zip
+*_dump.txt
+report_analysis.txt
+final_lint_output.txt
+premium_test_out.txt
+relatorio_rondas_*.md
+
+

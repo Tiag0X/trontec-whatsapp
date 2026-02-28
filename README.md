@@ -100,30 +100,6 @@ O sistema expõe diversos endpoints REST para automação externa:
 
 ---
 
-## 🐳 Deploy com Docker
-
-### Usando Docker Compose (Recomendado)
-
-```bash
-docker-compose up -d
-```
-
-### Build de Produção
-
-```bash
-# 1. Build da imagem
-docker build -t trontec-whatsapp .
-
-# 2. Executar o container
-docker run -p 3000:3000 \
-  -e APP_PASSWORD=admin \
-  --env-file .env \
-  -v ./prisma:/app/prisma \
-  trontec-whatsapp
-```
-
----
-
 ## 🔒 Segurança & Boas Práticas
 
 - **Autenticação**: Todas as rotas sensíveis da UI e API são protegidas por `APP_PASSWORD`.

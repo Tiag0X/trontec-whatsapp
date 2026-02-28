@@ -1,0 +1,94 @@
+"use client"
+
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import {
+    FileText,
+    MessageSquare,
+    Settings,
+    LayoutDashboard,
+    BookUser,
+    LogOut,
+    Zap
+} from "lucide-react"
+import { cn } from "@/lib/utils"
+
+const navLinks = [
+    { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/reports", label: "Relatórios", icon: FileText },
+    { href: "/messages", label: "Comunicados", icon: MessageSquare },
+    { href: "/contacts", label: "Contatos", icon: BookUser },
+    { href: "/settings", label: "Configurações", icon: Settings },
+]
+
+export function AppSidebar() {
+    const pathname = usePathname()
+
+    return (
+        <aside className="w-[260px] bg-sidebar h-screen flex flex-col fixed left-0 top-0 z-50 border-r border-sidebar-border">
+            {/* Logo */}
+            <div className="px-6 py-5 border-b border-sidebar-border">
+                <Link href="/" className="flex items-center gap-2.5 group">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary/10">
+                        <Zap className="h-5 w-5 text-sidebar-primary" />
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-[15px] font-semibold text-sidebar-accent-foreground tracking-tight">
+                            Trontec AI
+                        </span>
+                        <span className="text-[11px] text-sidebar-foreground/60 leading-none">
+                            Plataforma de Comunicações
+                        </span>
+                    </div>
+                </Link>
+            </div>
+
+            {/* Navigation */}
+            <nav className="flex-1 px-3 py-4 space-y-1">
+                <span className="px-3 mb-2 block text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">
+                    Menu
+                </span>
+                {navLinks.map((link) => {
+                    const Icon = link.icon
+                    const isActive = link.href === "/"
+                        ? pathname === "/"
+                        : pathname.startsWith(link.href)
+
+                    return (
+                        <Link
+                            key={link.href}
+                            href={link.href}
+                            className={cn(
+                                "nav-item",
+                                isActive
+                                    ? "active"
+                                    : "text-sidebar-foreground hover:text-sidebar-accent-foreground"
+                            )}
+                        >
+                            <Icon className="h-[18px] w-[18px]" />
+                            <span>{link.label}</span>
+                        </Link>
+                    )
+                })}
+            </nav>
+
+            {/* Footer */}
+            <div className="px-3 py-4 border-t border-sidebar-border space-y-2">
+                <button
+                    onClick={async () => {
+                        await fetch('/api/auth/logout', { method: 'POST' })
+                        window.location.reload()
+                    }}
+                    className="nav-item w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 cursor-pointer"
+                >
+                    <LogOut className="h-[18px] w-[18px]" />
+                    <span>Sair do Sistema</span>
+                </button>
+                <div className="px-3 py-1 text-[10px] text-sidebar-foreground/30 flex items-center justify-between">
+                    <span>v1.2.0</span>
+                    <span>Trontec</span>
+                </div>
+            </div>
+        </aside>
+    )
+}
