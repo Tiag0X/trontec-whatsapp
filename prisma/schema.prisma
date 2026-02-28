@@ -123,4 +123,12 @@ model MessageTemplate {
   updatedAt DateTime @updatedAt
 }
 
-
+model ScheduledMessage {
+  id           String   @id @default(uuid())
+  message      String
+  recipients   String   // JSON: "['group-id-1', 'group-id-2']"
+  scheduledAt  DateTime
+  status       String   @default("PENDING") // PENDING, SENT, FAILED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

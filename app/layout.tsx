@@ -3,6 +3,7 @@ import { Fira_Sans, Fira_Code } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/sonner";
 import { AppSidebar } from "@/components/app-sidebar";
+import { SidebarLayout } from "@/components/sidebar-layout";
 
 const firaSans = Fira_Sans({
   subsets: ['latin'],
@@ -28,12 +29,9 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning className={`${firaSans.variable} ${firaCode.variable}`}>
       <body className={firaSans.className}>
-        <div className="flex min-h-screen">
-          <AppSidebar />
-          <main className="flex-1 ml-[260px] bg-[#FAF5FF] min-h-screen">
-            {children}
-          </main>
-        </div>
+        <SidebarLayout sidebar={<AppSidebar />}>
+          {children}
+        </SidebarLayout>
         <Toaster />
       </body>
     </html>

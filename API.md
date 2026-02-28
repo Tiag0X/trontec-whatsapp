@@ -1,125 +1,197 @@
-# 📡 Documentação da API
+# 📡 Documentação de Integração da API
 
-Este documento fornece detalhes para os endpoints REST disponíveis no Trontec WhatsApp Orchestrator.
+Este documento técnico de referência detalha os endpoints REST disponíveis publicamente e internamente pelo **Trontec WhatsApp Orchestrator**. As descrições seguem padrões orientados a dados (Data-Driven) para facilitar o consumo por aplicações clientes, painéis web (ex: Next.js) e integrações externas (N8N, Zapier, etc).
+
+---
 
 ## 🔐 Autenticação
 
-Todas as chamadas de API requerem um header `password` ou um cookie de sessão válido.
+Todas as requisições API exigem que você forneça credenciais de segurança. Você pode autenticar através de duas formas:
+1. **Header `password`** (Recomendado para S2S - Server to Server)
+2. **Cookie de Sessão** (Recomendado para Integração Front-end local)
+
+| Parâmetro | Tipo | Local | Obrigatório | Descrição |
+|-----------|------|-------|-------------|-------------|
+| `password`| string | Header | Sim | Senha mestra configurada na variável `APP_PASSWORD`. |
 
 ---
 
-## 📑 Relatórios & Processamento
+## 📊 Relatórios & Processamentos
 
-### Disparar Processamento Manual
-Processa mensagens dos grupos configurados e gera um novo relatório.
+Rotas responsáveis por iniciar as cadeias de requisições analíticas massivas ou lidar com o histórico destes procedimentos.
 
-- **Endpoint**: `/api/process`
-- **Método**: `POST`
-- **Headers**:
-  - `password`: `APP_PASSWORD`
-- **Resposta**:
-  ```json
-  {
-    "success": true,
-    "message": "Processamento concluído com sucesso",
-    "reportId": "uuid"
-  }
-  ```
+### `POST /api/process`
+Dispara manualmente o motor assíncrono para colher dados de mensagens dos grupos e gerar um novo relatório executivo.
 
-### Listar Todos os Relatórios
-Retorna uma lista de todos os relatórios executivos gerados.
+**Parâmetros:**
+*Nenhum Body é necessário. A configuração global determina os parâmetros operacionais.*
 
-- **Endpoint**: `/api/reports`
-- **Método**: `GET`
+**Responses:**
+- `200 OK`: O processamento em background foi iniciado de forma satisfatória.
+- `401 Unauthorized`: Header `password` inválido.
+- `500 Server Error`: Erro interno ao iniciar o Job do orquestrador.
 
-### Obter Detalhes do Relatório
-Retorna o conteúdo completo de um relatório específico.
+**Exemplo de Resposta (200):**
+```json
+{
+  "success": true,
+  "message": "Processamento concluído com sucesso",
+  "reportId": "d7a46c2b-ab...-84f9"
+}
+```
 
-- **Endpoint**: `/api/reports/{id}`
-- **Método**: `GET`
+### `GET /api/reports`
+Recupera a lista resumida (metadados) de todos os relatórios disponíveis no sistema.
 
----
+**Parâmetros de Consulta (Query):**
+| Nome | Tipo | Opcional | Descrição |
+|------|------|----------|-------------|
+| `limit` | number | Sim | Limita a quantidade de registros retornados (default: 50). |
 
-## 📣 Mensagens & Broadcast
+**Responses:**
+- `200 OK`: Retorna o Array JSON com a meta-estrutura dos relatórios concluídos.
 
-### Enviar Mensagem de Broadcast
-Envia uma mensagem para múltiplos grupos.
+### `GET /api/reports/{id}`
+Busca os dados colossais e detalhados de um relatório concluído.
 
-- **Endpoint**: `/api/messages/send`
-- **Método**: `POST`
-- **Corpo (Body)**:
-  ```json
-  {
-    "groups": ["jid1", "jid2"],
-    "message": "Texto da mensagem"
-  }
-  ```
+**Parâmetros (Path):**
+| Nome | Tipo | Obrigatório | Descrição |
+|------|------|-------------|-------------|
+| `id` | string | Sim | UUID gerado pelo Processamento (reportId). |
 
-### Reescrever com IA
-Usa um prompt da biblioteca para reescrever uma mensagem.
-
-- **Endpoint**: `/api/messages/rewrite`
-- **Método**: `POST`
-- **Corpo (Body)**:
-  ```json
-  {
-    "text": "Mensagem original",
-    "promptId": "uuid"
-  }
-  ```
+**Responses:**
+- `200 OK`: JSON contendo a análise da IA e detalhes do parse de grupos.
+- `404 Not Found`: Relatório ou UUID não localizados no banco.
 
 ---
 
-## 👤 Contatos
+## 📣 Mensagens & Disparos (Broadcast)
 
-### Sincronizar Contatos
-Busca contatos da Evolution API e atualiza o banco de dados local.
+Rotas fundamentais de Interação Ativa (Disparo de textos da plataforma para grupos do WhatsApp).
 
-- **Endpoint**: `/api/contacts/sync`
-- **Método**: `POST`
+### `POST /api/messages/send`
+Dispara uma mesma mensagem textual instantaneamente para arrays de múltiplos IDs de Grupos do WhatsApp via Evolution API.
 
-### Enriquecer Contatos
-Usa IA ou dados externos para enriquecer perfis de contatos (fotos, info de negócio).
+**Corpo (Request Body):**
+| Nome | Tipo | Obrigatório | Descrição |
+|------|------|-------------|-------------|
+| `groupIds` | array[string] | Sim | IDs internos (UUIDs do banco local) dos grupos selecionados. |
+| `message` | string | Sim | Texto livre final a ser entregue. |
 
-- **Endpoint**: `/api/contacts/enrich`
-- **Método**: `POST`
-- **Parâmetros de Consulta (Query)**:
-  - `limit`: Número de contatos para enriquecer (padrão: 5)
+**Responses:**
+- `200 OK`: Entrega das tarefas concluída. Retorna métricas.
+- `400 Bad Request`: Parâmetros ausentes (texto vazio ou grupos sem seleção).
+- `404 Not Found`: Nenhum grupo válido/ativo encontrado com os IDs informados.
+
+**Exemplo de Request:**
+```json
+{
+  "groupIds": ["clxyz123-abc...", "clxyz456-def..."],
+  "message": "Aviso de manutenção agendado para o próximo final de semana."
+}
+```
+**Exemplo de Resposta (200):**
+```json
+{
+  "success": true,
+  "successCount": 2,
+  "failCount": 0
+}
+```
+
+### `POST /api/messages/schedule`
+Cria um agendamento assíncrono para disparo futuro. Motor de rotina local avalia e engatilha o `EvolutionService`.
+
+**Corpo (Request Body):**
+| Nome | Tipo | Obrigatório | Descrição |
+|------|------|-------------|-------------|
+| `recipients` | array[string] | Sim | JIDs dos destinatários/grupos. |
+| `message` | string | Sim | Texto do agendamento a ser salvo. |
+| `scheduledAt` | string | Sim | Timestamp no padrão ISO 8601 (futuro). |
+
+**Responses:**
+- `200 OK`: Agendamento persistido na base de escalonamento.
+- `400 Bad Request`: Horário configurado no passado.
+
+### `GET /api/messages/schedule`
+Busca a fila contendo todo o histórico de agendamentos solicitados.
+
+**Responses:**
+- `200 OK`: Array JSON exibindo entidades PENDING, SENT, FAILED, PARTIAL.
+
+### `DELETE /api/messages/schedule/{id}`
+Aborta e deleta preventivamente um agendamento salvo pelo UUID. Só pode cancelar caso o status ainda seja `PENDING`.
+
+**Responses:**
+- `200 OK`: Excluído do banco.
+- `400 Bad Request`: A mensagem já foi processada pela roleta do Orquestrador.
+
+### `POST /api/messages/rewrite`
+Utilitário de IA. Aciona o LLM e reescreve textos livres baseado na "Persona" e "Regras" de um Prompt específico da galeria.
+
+**Corpo (Request Body):**
+| Nome | Tipo | Obrigatório | Descrição |
+|------|------|-------------|-------------|
+| `text` | string | Sim | Mensagem de entrada (Draft/Rascunho). |
+| `promptId` | string | Não | UUID que aponta para um Prompt Base de Comportamento. Se nulo, usará regra padrão de formatação limpa. |
+
+**Responses:**
+- `200 OK`: Texto filtrado retornado pela OpenAI.
+- `500 Server Error`: Key da API inválida ou limites do ChatGPT ultrapassados.
 
 ---
 
-## 👥 Grupos
+## 👥 Contatos e Grupos
 
-### Listar Grupos Locais
-- **Endpoint**: `/api/groups`
-- **Método**: `GET`
+Rotas passivas/Datalake usadas para preencher as listagens, checkboxes e telas primárias do sistema.
 
-### Buscar Grupos Remotos
-Busca grupos diretamente da Evolution API.
+### `POST /api/contacts/sync`
+Comunica-se proativamente com a API da Evolution puxando o catálogo integral de contatos da instância do WhatsApp logada. Atualiza o cache SQL local.
 
-- **Endpoint**: `/api/groups/remote`
-- **Método**: `GET`
+**Responses:**
+- `200 OK`: Sincronização espelhada efetuada.
 
----
+### `POST /api/contacts/enrich` (Opcional/Experimental)
+Pesquisa em rede neural, dados de redes sociais e inteligência open source dados anexos para contatos específicos visando CRM.
 
-## ⚙️ Sistema & Config
+**Parâmetros de Consulta (Query):**
+| Nome | Tipo | Opcional | Descrição |
+|------|------|----------|-------------|
+| `limit` | number | Sim | Limita a banda máxima gerada no prompt (default: 5). |
 
-### Obter Estatísticas do Dashboard
-- **Endpoint**: `/api/stats/dashboard`
-- **Método**: `GET`
+### `GET /api/groups`
+Recupera do Banco de Dados local rápido a lista dos últimos grupos sincronizados conhecidos. (Ideal para selects UI).
 
-### Atualizar Configurações
-- **Endpoint**: `/api/settings`
-- **Método**: `POST`
-- **Corpo (Body)**:
-  ```json
-  {
-    "evolutionUrl": "...",
-    "evolutionToken": "...",
-    "openaiKey": "..."
-  }
-  ```
+### `GET /api/groups/remote`
+Ignora o cache interno e perfura a comunicação primária direto na API Evolution verificando quais os grupos logados neste exato milissegundo. Mais demorado.
 
 ---
 
-> Para qualquer problema ou solicitação de funcionalidade, entre em contato com a equipe de desenvolvimento.
+## ⚙️ Core & Settings
+
+### `GET /api/stats/dashboard`
+Obtém totalizadores cardeais.
+
+**Exemplo de Resposta (200):**
+```json
+{
+  "totalContacts": 450,
+  "totalGroups": 12,
+  "totalReports": 38,
+  "lastSync": "2025-10-18T12:00:00.000Z"
+}
+```
+
+### `POST /api/settings`
+Altera chaves mestras globais. CUIDADO: Essas mudanças refletem em todo o runtime imediatamente.
+
+**Corpo (Request Body):**
+| Nome | Tipo | Obrigatório | Descrição |
+|------|------|-------------|-------------|
+| `evolutionUrl` | string | Sim | URL endpoint Host da plataforma Evolution. |
+| `evolutionToken` | string | Sim | Chave API Key para consumo Global do Evolution. |
+| `openaiKey` | string | Sim | Chave Secreta OpenAI (Sk-...) de LLM Analytics. |
+
+**Responses:**
+- `200 OK`: Prisma DB Configuração Atualizada com as novas conexões.
+- `403 Forbidden`: Usuário não privilegiado efetuando requisição.

@@ -7,10 +7,12 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Send, AlertTriangle, History, Code, Sparkles, LayoutTemplate, Plus, Trash, Pencil, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { Send, AlertTriangle, History, Code, Sparkles, LayoutTemplate, Plus, Trash, Pencil, CheckCircle2, XCircle, Clock, CalendarClock } from 'lucide-react';
 import { toast } from 'sonner';
 import { GroupSelector } from '@/components/group-selector';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
 
 interface Broadcast {
     id: string;
@@ -18,6 +20,15 @@ interface Broadcast {
     recipients: string;
     successCount: number;
     failCount: number;
+    createdAt: string;
+}
+
+interface ScheduledMessage {
+    id: string;
+    message: string;
+    recipients: string;
+    scheduledAt: string;
+    status: string;
     createdAt: string;
 }
 
@@ -32,8 +43,11 @@ export default function MessagesPage() {
     const [message, setMessage] = useState("");
     const [sending, setSending] = useState(false);
     const [history, setHistory] = useState<Broadcast[]>([]);
+    const [scheduledMessages, setScheduledMessages] = useState<ScheduledMessage[]>([]);
+    const [scheduledDate, setScheduledDate] = useState("");
+    const [scheduling, setScheduling] = useState(false);
     const [prompts, setPrompts] = useState<{ id: string, name: string }[]>([]);
-    const [defaultPromptId, setDefaultPromptId] = useState<string | null>(null);
+    const [mensagensPromptId, setMensagensPromptId] = useState<string | null>(null);
     const [rewriting, setRewriting] = useState(false);
     const [showPromptSelect, setShowPromptSelect] = useState(false);
     const [templates, setTemplates] = useState<MessageTemplate[]>([]);
@@ -49,18 +63,15 @@ export default function MessagesPage() {
             if (Array.isArray(data)) setHistory(data);
         } catch { console.error("Failed to load history"); }
     };
-    const fetchSettings = async () => {
-        try {
-            const res = await fetch('/api/settings');
-            const data = await res.json();
-            if (data?.defaultPromptId) setDefaultPromptId(data.defaultPromptId);
-        } catch { console.error("Failed to load settings"); }
-    };
     const fetchPrompts = async () => {
         try {
             const res = await fetch('/api/prompts');
             const data = await res.json();
-            if (Array.isArray(data)) setPrompts(data);
+            if (Array.isArray(data)) {
+                setPrompts(data);
+                const msgPrompt = data.find(p => p.name.toLowerCase() === 'mensagens');
+                if (msgPrompt) setMensagensPromptId(msgPrompt.id);
+            }
         } catch { console.error("Failed to load prompts"); }
     };
     const fetchTemplates = async () => {
@@ -70,8 +81,15 @@ export default function MessagesPage() {
             if (Array.isArray(data)) setTemplates(data);
         } catch { console.error("Failed to load templates"); }
     };
+    const fetchScheduledMessages = async () => {
+        try {
+            const res = await fetch('/api/messages/schedule');
+            const data = await res.json();
+            if (Array.isArray(data)) setScheduledMessages(data);
+        } catch { console.error("Failed to load scheduled messages"); }
+    };
 
-    useEffect(() => { fetchHistory(); fetchPrompts(); fetchSettings(); fetchTemplates(); }, []);
+    useEffect(() => { fetchHistory(); fetchPrompts(); fetchTemplates(); fetchScheduledMessages(); }, []);
 
     const handleSaveTemplate = async () => {
         if (!newTemplateName || !newTemplateContent) { toast.warning("Nome e conteúdo são obrigatórios."); return; }
@@ -111,7 +129,7 @@ export default function MessagesPage() {
     };
 
     const handleRewrite = async (promptId?: string) => {
-        const idToUse = promptId || defaultPromptId;
+        const idToUse = promptId || mensagensPromptId;
         if (!idToUse) { setShowPromptSelect(!showPromptSelect); return; }
         if (!message.trim()) { toast.warning("Digite uma mensagem primeiro."); return; }
         setRewriting(true);
@@ -138,6 +156,47 @@ export default function MessagesPage() {
         } catch { toast.error("Erro de conexão.", { id: toastId }); } finally { setSending(false); }
     };
 
+    const handleSchedule = async () => {
+        if (selectedGroupIds.length === 0) { toast.warning("Selecione pelo menos um grupo."); return; }
+        if (message.trim() === "") { toast.warning("Digite uma mensagem."); return; }
+        if (!scheduledDate) { toast.warning("Selecione uma data e hora."); return; }
+
+        const scheduleTime = new Date(scheduledDate).getTime();
+        if (scheduleTime <= Date.now()) { toast.warning("A data de agendamento deve ser no futuro."); return; }
+
+        if (!confirm(`Tem certeza que deseja agendar esta mensagem para ${selectedGroupIds.length} grupos?`)) return;
+        setScheduling(true);
+        const toastId = toast.loading("Agendando mensagem...");
+        try {
+            const res = await fetch('/api/messages/schedule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ recipients: selectedGroupIds, message, scheduledAt: new Date(scheduledDate).toISOString() })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success(`Mensagem agendada com sucesso!`, { id: toastId });
+                setMessage("");
+                setScheduledDate("");
+                fetchScheduledMessages();
+            }
+            else { toast.error(`Erro: ${data.error}`, { id: toastId }); }
+        } catch { toast.error("Erro de conexão.", { id: toastId }); } finally { setScheduling(false); }
+    };
+
+    const handleCancelSchedule = async (id: string) => {
+        if (!confirm("Tem certeza que deseja cancelar este agendamento?")) return;
+        try {
+            const res = await fetch(`/api/messages/schedule/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                toast.success("Agendamento cancelado.");
+                fetchScheduledMessages();
+            } else {
+                toast.error("Erro ao cancelar agendamento.");
+            }
+        } catch { toast.error("Erro de conexão."); }
+    };
+
     return (
         <div className="p-8 max-w-[1100px] mx-auto space-y-8">
             {/* Header */}
@@ -148,12 +207,12 @@ export default function MessagesPage() {
 
             {/* Composer */}
             <div className="grid gap-5 md:grid-cols-2">
-                <Card className="border shadow-sm">
+                <Card className="w-full md:w-80 shrink-0 h-80 md:h-[calc(100vh-140px)] flex flex-col border shadow-sm">
                     <CardHeader className="pb-3">
                         <CardTitle className="text-base font-semibold">Destinatários</CardTitle>
                         <CardDescription>Selecione os grupos de destino.</CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="flex-1 min-h-0">
                         <GroupSelector selectedGroupIds={selectedGroupIds} onSelectionChange={setSelectedGroupIds} />
                     </CardContent>
                 </Card>
@@ -221,13 +280,13 @@ export default function MessagesPage() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    className={`h-7 gap-1.5 text-xs text-[#0d9488] border-[#0d9488]/20 bg-[#0d9488]/5 hover:bg-[#0d9488]/10 ${defaultPromptId ? 'rounded-r-none border-r-0' : ''}`}
+                                    className={`h-7 gap-1.5 text-xs text-[#0d9488] border-[#0d9488]/20 bg-[#0d9488]/5 hover:bg-[#0d9488]/10 ${mensagensPromptId ? 'rounded-r-none border-r-0' : ''}`}
                                     onClick={() => handleRewrite(undefined)}
                                     disabled={rewriting}
                                 >
-                                    <Sparkles className="h-3 w-3" /> {defaultPromptId ? "Reescrever" : "IA"}
+                                    <Sparkles className="h-3 w-3" /> {mensagensPromptId ? "Reescrever" : "IA"}
                                 </Button>
-                                {defaultPromptId && (
+                                {mensagensPromptId && (
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -248,8 +307,8 @@ export default function MessagesPage() {
                                             </div>
                                         ) : (
                                             prompts.map(p => (
-                                                <Button key={p.id} variant="ghost" size="sm" className={`w-full justify-start h-auto py-1.5 px-2 text-xs rounded-md ${p.id === defaultPromptId ? 'font-semibold bg-muted/50' : ''}`} onClick={() => handleRewrite(p.id)}>
-                                                    {p.name} {p.id === defaultPromptId && <Badge variant="secondary" className="ml-auto text-[9px] px-1 py-0">Padrão</Badge>}
+                                                <Button key={p.id} variant="ghost" size="sm" className={`w-full justify-start h-auto py-1.5 px-2 text-xs rounded-md ${p.id === mensagensPromptId ? 'font-semibold bg-muted/50' : ''}`} onClick={() => handleRewrite(p.id)}>
+                                                    {p.name} {p.id === mensagensPromptId && <Badge variant="secondary" className="ml-auto text-[9px] px-1 py-0">Padrão</Badge>}
                                                 </Button>
                                             ))
                                         )}
@@ -265,74 +324,165 @@ export default function MessagesPage() {
                             onChange={(e) => setMessage(e.target.value)}
                         />
 
-                        <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200/50 p-2.5 rounded-lg">
-                            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                            <span>Esta ação enviará mensagens reais para os grupos selecionados.</span>
+                        <div className="flex flex-col gap-2 mt-4 pr-1">
+                            <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200/50 p-2.5 rounded-lg mb-2">
+                                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                <span>Esta ação enviará mensagens reais para os grupos selecionados.</span>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-1">
+                                <Label className="text-sm font-medium whitespace-nowrap">Agendar para:</Label>
+                                <Input
+                                    type="datetime-local"
+                                    className="w-full sm:max-w-[220px] h-9"
+                                    value={scheduledDate}
+                                    onChange={(e) => setScheduledDate(e.target.value)}
+                                    min={new Date().toISOString().slice(0, 16)}
+                                />
+                                {scheduledDate && <Button variant="ghost" size="sm" onClick={() => setScheduledDate("")} className="text-xs h-8 w-fit text-muted-foreground hover:text-foreground">Limpar</Button>}
+                            </div>
                         </div>
                     </CardContent>
-                    <CardFooter className="border-t bg-muted/20 p-4">
-                        <Button className="w-full bg-primary hover:bg-primary/90" size="lg" onClick={handleSend} disabled={sending || selectedGroupIds.length === 0 || message.trim() === ""}>
-                            {sending ? "Enviando..." : <><Send className="mr-2 h-4 w-4" /> Enviar Comunicado</>}
+                    <CardFooter className="border-t bg-muted/20 p-4 flex flex-col sm:flex-row gap-3">
+                        <Button className="w-full sm:flex-1 bg-primary hover:bg-primary/90 text-primary-foreground" size="lg" onClick={handleSend} disabled={sending || scheduling || selectedGroupIds.length === 0 || message.trim() === ""}>
+                            {sending ? "Enviando..." : <><Send className="mr-2 h-4 w-4" /> Enviar Agora</>}
+                        </Button>
+                        <Button className="w-full sm:flex-1 bg-[#0d9488] hover:bg-[#0f766e] text-white" size="lg" onClick={handleSchedule} disabled={scheduling || sending || !scheduledDate || selectedGroupIds.length === 0 || message.trim() === ""}>
+                            {scheduling ? "Agendando..." : <><CalendarClock className="mr-2 h-4 w-4" /> Agendar Comunicado</>}
                         </Button>
                     </CardFooter>
                 </Card>
             </div>
 
-            {/* History */}
+            {/* History and Scheduled */}
             <div className="space-y-4">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                    <History className="h-4 w-4 text-muted-foreground" />
-                    Histórico de Envios
-                </h2>
-                <div className="grid gap-3">
-                    {history.length === 0 ? (
-                        <Card className="bg-muted/20 border-dashed">
-                            <CardContent className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-                                <Send className="h-8 w-8 opacity-20 mb-2" />
-                                <p className="text-sm">Nenhum envio registrado.</p>
-                            </CardContent>
-                        </Card>
-                    ) : (
-                        history.map((item) => {
-                            const isSuccess = item.failCount === 0;
-                            const isPartial = item.failCount > 0 && item.successCount > 0;
-                            let recipientNames = "Desconhecido";
-                            try { const parsed = JSON.parse(item.recipients); if (Array.isArray(parsed)) recipientNames = parsed.join(", "); } catch { recipientNames = item.recipients; }
+                <Tabs defaultValue="history" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+                        <TabsTrigger value="history" className="flex items-center gap-2">
+                            <History className="h-4 w-4" /> Histórico
+                        </TabsTrigger>
+                        <TabsTrigger value="scheduled" className="flex items-center gap-2">
+                            <CalendarClock className="h-4 w-4" /> Agendamentos
+                            {scheduledMessages.length > 0 && (
+                                <Badge variant="secondary" className="ml-1 px-1.5 py-0 h-4 min-w-4 flex items-center justify-center rounded-full text-[10px]">
+                                    {scheduledMessages.length}
+                                </Badge>
+                            )}
+                        </TabsTrigger>
+                    </TabsList>
 
-                            return (
-                                <Link key={item.id} href={`/messages/${item.id}`}>
-                                    <Card className="hover:shadow-md transition-all cursor-pointer border-l-[3px] border-l-transparent hover:border-l-primary group">
-                                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                            <div className="space-y-0.5 min-w-0 flex-1">
-                                                <CardTitle className="text-sm font-semibold group-hover:text-primary transition-colors">
-                                                    {new Date(item.createdAt).toLocaleString('pt-BR')}
-                                                </CardTitle>
-                                                <p className="text-xs text-muted-foreground truncate">Para: <span className="font-medium text-foreground/80">{recipientNames}</span></p>
-                                            </div>
-                                            <Badge
-                                                variant="secondary"
-                                                className={`shrink-0 text-[11px] font-medium border-0 ${isSuccess ? 'bg-emerald-100 text-emerald-700' :
-                                                    isPartial ? 'bg-amber-100 text-amber-700' :
-                                                        'bg-red-100 text-red-700'
-                                                    }`}
-                                            >
-                                                {isSuccess ? <CheckCircle2 className="h-3 w-3 mr-1" /> : isPartial ? <Clock className="h-3 w-3 mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
-                                                {isSuccess ? 'Sucesso' : isPartial ? 'Parcial' : 'Falha'}
-                                            </Badge>
-                                        </CardHeader>
-                                        <CardContent className="pb-2">
-                                            <div className="bg-muted/40 p-2.5 rounded-lg text-xs text-muted-foreground whitespace-pre-wrap line-clamp-2">{item.message}</div>
-                                        </CardContent>
-                                        <CardFooter className="text-[10px] text-muted-foreground flex justify-between pt-0 pb-3 px-6">
-                                            <span>ID: {item.id.substring(0, 8)}</span>
-                                            <span>{item.successCount} Enviados / {item.failCount} Erros</span>
-                                        </CardFooter>
-                                    </Card>
-                                </Link>
-                            );
-                        })
-                    )}
-                </div>
+                    <TabsContent value="history" className="mt-4">
+                        <div className="grid gap-3">
+                            {history.length === 0 ? (
+                                <Card className="bg-muted/20 border-dashed">
+                                    <CardContent className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                                        <Send className="h-8 w-8 opacity-20 mb-2" />
+                                        <p className="text-sm">Nenhum envio registrado.</p>
+                                    </CardContent>
+                                </Card>
+                            ) : (
+                                history.map((item) => {
+                                    const isSuccess = item.failCount === 0;
+                                    const isPartial = item.failCount > 0 && item.successCount > 0;
+                                    let recipientNames = "Desconhecido";
+                                    try { const parsed = JSON.parse(item.recipients); if (Array.isArray(parsed)) recipientNames = parsed.join(", "); } catch { recipientNames = item.recipients; }
+
+                                    return (
+                                        <Link key={item.id} href={`/messages/${item.id}`}>
+                                            <Card className="hover:shadow-md transition-all cursor-pointer border-l-[3px] border-l-transparent hover:border-l-primary group">
+                                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                                    <div className="space-y-0.5 min-w-0 flex-1">
+                                                        <CardTitle className="text-sm font-semibold group-hover:text-primary transition-colors">
+                                                            {new Date(item.createdAt).toLocaleString('pt-BR')}
+                                                        </CardTitle>
+                                                        <p className="text-xs text-muted-foreground truncate">Para: <span className="font-medium text-foreground/80">{recipientNames}</span></p>
+                                                    </div>
+                                                    <Badge
+                                                        variant="secondary"
+                                                        className={`shrink-0 text-[11px] font-medium border-0 ${isSuccess ? 'bg-emerald-100 text-emerald-700' :
+                                                            isPartial ? 'bg-amber-100 text-amber-700' :
+                                                                'bg-red-100 text-red-700'
+                                                            }`}
+                                                    >
+                                                        {isSuccess ? <CheckCircle2 className="h-3 w-3 mr-1" /> : isPartial ? <Clock className="h-3 w-3 mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
+                                                        {isSuccess ? 'Sucesso' : isPartial ? 'Parcial' : 'Falha'}
+                                                    </Badge>
+                                                </CardHeader>
+                                                <CardContent className="pb-2">
+                                                    <div className="bg-muted/40 p-2.5 rounded-lg text-xs text-muted-foreground whitespace-pre-wrap line-clamp-2">{item.message}</div>
+                                                </CardContent>
+                                                <CardFooter className="text-[10px] text-muted-foreground flex justify-between pt-0 pb-3 px-6">
+                                                    <span>ID: {item.id.substring(0, 8)}</span>
+                                                    <span>{item.successCount} Enviados / {item.failCount} Erros</span>
+                                                </CardFooter>
+                                            </Card>
+                                        </Link>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </TabsContent>
+
+                    <TabsContent value="scheduled" className="mt-4">
+                        <div className="grid gap-3">
+                            {scheduledMessages.length === 0 ? (
+                                <Card className="bg-muted/20 border-dashed">
+                                    <CardContent className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                                        <CalendarClock className="h-8 w-8 opacity-20 mb-2" />
+                                        <p className="text-sm">Nenhum envio agendado.</p>
+                                    </CardContent>
+                                </Card>
+                            ) : (
+                                scheduledMessages.map((item) => {
+                                    let recipientNames = "Desconhecido";
+                                    try { const parsed = JSON.parse(item.recipients); if (Array.isArray(parsed)) recipientNames = `[${parsed.length} grupos selecionados]`; } catch { recipientNames = item.recipients; }
+
+                                    return (
+                                        <Card key={item.id} className={`border-l-[3px] ${(item as any).status === 'SENT' ? 'border-l-emerald-500' :
+                                            (item as any).status === 'PARTIAL' ? 'border-l-amber-500' :
+                                                (item as any).status === 'FAILED' ? 'border-l-red-500' :
+                                                    'border-l-amber-500'
+                                            }`}>
+                                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                                <div className="space-y-0.5 min-w-0 flex-1">
+                                                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                                                        <Clock className={`h-3.5 w-3.5 ${(item as any).status === 'SENT' ? 'text-emerald-600' :
+                                                            (item as any).status === 'PARTIAL' ? 'text-amber-600' :
+                                                                (item as any).status === 'FAILED' ? 'text-red-600' :
+                                                                    'text-amber-600'
+                                                            }`} />
+                                                        Agendado para: {new Date(item.scheduledAt).toLocaleString('pt-BR')}
+                                                    </CardTitle>
+                                                    <p className="text-xs text-muted-foreground truncate">Para: <span className="font-medium text-foreground/80">{recipientNames}</span></p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <Badge variant="outline" className={`text-[11px] font-medium border-0 ${(item as any).status === 'SENT' ? 'bg-emerald-100 text-emerald-700' :
+                                                        (item as any).status === 'PARTIAL' ? 'bg-amber-100 text-amber-700' :
+                                                            (item as any).status === 'FAILED' ? 'bg-red-100 text-red-700' :
+                                                                'bg-amber-50 border border-amber-200 text-amber-600'
+                                                        }`}>
+                                                        {(item as any).status === 'SENT' ? 'Sucesso' :
+                                                            (item as any).status === 'PARTIAL' ? 'Parcial' :
+                                                                (item as any).status === 'FAILED' ? 'Falha' :
+                                                                    'Pendente'}
+                                                    </Badge>
+                                                    {(item as any).status === 'PENDING' && (
+                                                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50" onClick={(e) => { e.preventDefault(); handleCancelSchedule(item.id); }} title="Cancelar Agendamento">
+                                                            <Trash className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </CardHeader>
+                                            <CardContent className="pb-3">
+                                                <div className="bg-muted/40 p-2.5 rounded-lg text-xs text-muted-foreground whitespace-pre-wrap line-clamp-2">{item.message}</div>
+                                            </CardContent>
+                                        </Card>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </TabsContent>
+                </Tabs>
             </div>
         </div>
     );
