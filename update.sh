@@ -55,8 +55,12 @@ if [ "$CURRENT_URL" != "$EXPECTED_URL" ]; then
     git remote set-url origin "$EXPECTED_URL"
 fi
 
-# Desabilitar prompt de credenciais (repo público não precisa)
-GIT_TERMINAL_PROMPT=0 git pull origin main
+# Detectar o branch atual automaticamente (master ou main)
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "master")
+echo "   📌 Branch detectado: $BRANCH"
+
+# Desabilitar QUALQUER credential helper e prompt interativo
+git -c credential.helper= -c credential.helper='' pull origin "$BRANCH"
 echo "   ✅ Código atualizado."
 
 # 4. Instalar/atualizar dependências
