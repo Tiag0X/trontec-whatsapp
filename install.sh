@@ -79,13 +79,12 @@ if [ ! -f .env ]; then
     cat <<EOF > .env
 APP_PASSWORD=admin
 DATABASE_URL="file:./prisma/dev.db"
-# Adicione suas chaves abaixo após a instalação
-# OPENAI_API_KEY=
-# EVOLUTION_API_URL=
-# EVOLUTION_API_TOKEN=
 EOF
     echo "✅ Senha padrão definida como: admin"
 fi
+
+# Exportar explicitamente para o Prisma não falhar em alguns shells
+export DATABASE_URL="file:./prisma/dev.db"
 
 # 7. Preparar Banco de Dados
 echo "🗄️  Configurando Prisma e SQLite..."
@@ -94,7 +93,8 @@ npx prisma db push --accept-data-loss
 
 # 8. Build de Produção
 echo "🏗️  Gerando build de produção (Next.js)..."
-npm run build
+# Garantir que DATABASE_URL esteja disponível também no build
+DATABASE_URL="file:./prisma/dev.db" npm run build
 
 echo ""
 echo "----------------------------------------------------"
